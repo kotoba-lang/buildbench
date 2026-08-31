@@ -225,6 +225,24 @@ success: **a benchmark that trips a declared bound and reports it as a defect
 is measuring the bound, not the compiler.** The difference between the three
 failures above is one field in the report and an opposite conclusion.
 
+## Testing the validator itself
+
+```sh
+nbb --classpath "src:../perfgate/src:../machine/src" test/validator_test.cljs
+```
+
+A validator that has only ever been seen to pass is not evidence of anything,
+and its bad failure mode is silent: one that accepts everything looks exactly
+like a toolchain that never breaks. So the test asserts all three outcomes
+against hand-assembled modules, including the case that is hardest to catch —
+a structurally perfect module that computes the wrong answer, which
+instantiating without calling would wave through.
+
+It has been run in both directions. Removing the answer comparison makes
+exactly the two answer-dependent checks fail and leaves the other three
+passing, which is the failure matching what was broken rather than a red for
+some unrelated reason.
+
 ## Layout
 
 ```
@@ -234,6 +252,7 @@ src/buildbench/lanes.cljs      toolchains and what each artifact must prove
 src/buildbench/measure.cljs    interleaving, budgets, validation-after-clock
 src/buildbench/host.cljs       sysctl probe → a :measured machine descriptor
 src/buildbench/report.cljs     the two qualifications, kept apart
+test/validator_test.cljs       proof the artifact check refuses for its stated reason
 results/                       published runs, one JSON per host
 ```
 
