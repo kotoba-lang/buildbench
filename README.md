@@ -206,7 +206,10 @@ compiler refuses the module:
  :message "function count exceeds admission limit"}
 ```
 
-It exits 65 and names what it refused. This is worth putting directly beside
+It exits 65 and names what it refused. The limit is per module — a larger
+program is a multi-module project, which this single-file harness deliberately
+does not exercise, so `K=1023` is this benchmark's ceiling and not the
+language's. This is worth putting directly beside
 the LEB128 bug, because the two are opposites and they arrive at the same
 place in a naive table — a lane that stopped:
 
