@@ -28,9 +28,25 @@
   (let [r (cp/spawnSync "which" #js [cmd] #js {:encoding "utf8"})]
     (when (zero? (.-status r)) (str/trim (.-stdout r)))))
 
-(defn version-of [cmd args]
-  (let [r (cp/spawnSync cmd (clj->js args) #js {:encoding "utf8"})]
-    (when r (first (str/split-lines (str/trim (str (.-stdout r) (.-stderr r))))))))
+(defn version-of
+  "The tool's version, or its resolved path when it has no version command.
+
+  `kotoba` 0.7.3 has no `--version` and answers `--help` with a usage error,
+  so the naive probe records a JSON error object as the version string and
+  anything downstream prints it as though it were one. When the probe does
+  not come back looking like a version, fall back to the realpath — Homebrew
+  keeps the version in it, and a path is at least true."
+  [cmd args]
+  (let [r (cp/spawnSync cmd (clj->js args) #js {:encoding "utf8"})
+        line (when r (first (str/split-lines (str/trim (str (.-stdout r) (.-stderr r))))))
+        version-ish? (and line
+                          (< (count line) 120)
+                          (re-find #"\d+\.\d+" line)
+                          (not (str/starts-with? line "{")))]
+    (cond
+      version-ish? line
+      (fs/existsSync cmd) (try (fs/realpathSync cmd) (catch :default _ cmd))
+      :else line)))
 
 ;; ── artifact validation ──────────────────────────────────────────────────
 

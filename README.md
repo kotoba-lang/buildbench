@@ -21,8 +21,9 @@ This harness closes both. It generates the same program at several sizes in
 four languages, builds it through every toolchain on the host, and then —
 after the clock has stopped — runs the artifact and checks the answer.
 
-It found two things on the first serious run — one a real bug, one a safety
-bound doing its job — and the difference between them is the point. See
+On its first serious run it found three lanes that stopped working. One was a
+real bug; the other two were declared bounds doing exactly what they say they
+do. Telling those apart is the point. See
 [What it found](#what-it-found-on-the-first-run).
 
 ## Running it
@@ -33,7 +34,7 @@ git clone https://github.com/kotoba-lang/perfgate ../perfgate
 git clone https://github.com/kotoba-lang/machine  ../machine
 
 nbb --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljs \
-  --scales 1,32,128,129,512,1024 \
+  --scales 1,32,128,129,512,1023,1024 \
   --runs 7 \
   --budget-ms 300000 \
   --fuel 1048576 \
@@ -170,7 +171,12 @@ without the check, that lane would have posted a *faster* number at every size
 above 128 — less work, no valid module — and the fastest column in the table
 would have been the broken one.
 
-### Not a bug: the default fuel budget, doing its job
+### Not a bug, twice: two declared bounds doing their job
+
+Two more Kotoba lanes stopped, and publishing them next to the paragraph above
+would have been wrong in both cases.
+
+**The default fuel budget.**
 
 The first run also showed Kotoba "failing" at exactly `K=512`, and it would
 have been easy, and wrong, to publish that next to the paragraph above.
@@ -191,10 +197,33 @@ So the harness declares the budget explicitly and records it in the report
 (`method.declaredKotobaFuel`). C, Rust and Java have no equivalent bound to
 raise, which is itself worth stating rather than quietly equalising away.
 
+**The function-count admission limit.** Past `max-functions` (1,024) the
+compiler refuses the module:
+
+```
+{:ok false, :error :subset,
+ :diagnostic {:code :kotoba.error/subset-reject},
+ :message "function count exceeds admission limit"}
+```
+
+It exits 65 and names what it refused. This is worth putting directly beside
+the LEB128 bug, because the two are opposites and they arrive at the same
+place in a naive table — a lane that stopped:
+
+| | released CLI above 128 functions | Amu above 1,024 functions |
+|---|---|---|
+| exit status | success | 65 |
+| what you get | a module that will not load | a diagnostic naming the limit |
+| how you find out | when something tries to run it | immediately |
+
+A loud ceiling and a silent one are very different results. Only a harness that
+executes the artifact can tell them apart, which is the whole reason this one
+does.
+
 The general shape is worth naming, because it is easy to hit and it looks like
-success: **a benchmark that trips a safety bound and reports it as a defect is
-measuring the bound, not the compiler.** The two failures above are a
-one-character difference in the report and an opposite conclusion.
+success: **a benchmark that trips a declared bound and reports it as a defect
+is measuring the bound, not the compiler.** The difference between the three
+failures above is one field in the report and an opposite conclusion.
 
 ## Layout
 
