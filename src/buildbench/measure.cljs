@@ -101,7 +101,8 @@
                [(:id lane)
                 (if-not (:available? lane)
                   {:status "unavailable"
-                   :reason (str "no " (name (:id lane)) " toolchain on this host")}
+                   :reason (or (:probeError lane)
+                               (str "no " (name (:id lane)) " toolchain on this host"))}
                   (let [rs (:samples (get @state (:id lane)))
                         oks (filterv #(= :ok (:status %)) rs)
                         bad (first (remove #(= :ok (:status %)) rs))]

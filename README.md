@@ -21,7 +21,8 @@ This harness closes both. It generates the same program at several sizes in
 four languages, builds it through every toolchain on the host, and then —
 after the clock has stopped — runs the artifact and checks the answer.
 
-It found something on the first serious run. See
+It found two things on the first serious run — one a real bug, one a safety
+bound doing its job — and the difference between them is the point. See
 [What it found](#what-it-found-on-the-first-run).
 
 ## Running it
@@ -32,9 +33,10 @@ git clone https://github.com/kotoba-lang/perfgate ../perfgate
 git clone https://github.com/kotoba-lang/machine  ../machine
 
 nbb --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljs \
-  --scales 1,32,128,129,512,2048 \
+  --scales 1,32,128,129,512,1024 \
   --runs 7 \
-  --budget-ms 180000 \
+  --budget-ms 300000 \
+  --fuel 1048576 \
   --amu /path/to/kotoba-lang/amu \
   --output results/latest.json
 ```
@@ -149,22 +151,50 @@ claim pinned to nothing, and perfgate refuses it.
 
 ## What it found on the first run
 
-The released `kotoba` CLI (0.7.3) **emits an invalid WebAssembly module once a
-module has more than 128 functions.**
+Two things, and they are not the same kind of thing. Telling them apart is
+most of what this harness is for.
+
+### A real bug: the released CLI stops emitting valid modules at 129 functions
 
 ```
 K=128 → ok
 K=129 → CompileError: function index #15872 is out of bounds
 ```
 
-128 is where a LEB128 index stops fitting in one byte. The current compiler
-in [`amu`](https://github.com/kotoba-lang/amu) does not have the bug; the
-released binary does.
+128 is where a LEB128 index stops fitting in one byte. The current compiler in
+[`amu`](https://github.com/kotoba-lang/amu) does not have this; the released
+`kotoba` 0.7.3 binary does.
 
 This is the entire argument for validating inside a benchmark harness. Timed
-without the check, that lane would have produced a *faster* number at every
-size above 128 — less work, no valid module — and the fastest column in the
-table would have been the broken one.
+without the check, that lane would have posted a *faster* number at every size
+above 128 — less work, no valid module — and the fastest column in the table
+would have been the broken one.
+
+### Not a bug: the default fuel budget, doing its job
+
+The first run also showed Kotoba "failing" at exactly `K=512`, and it would
+have been easy, and wrong, to publish that next to the paragraph above.
+
+A Kotoba module carries a **declared call-fuel budget**, and the compiler
+default is 512 calls. The workload's entry point calls `K` leaves, so at
+`K=512` the module runs out of the fuel its author declared and traps. That is
+not a compiler defect; it is the language refusing to run a module longer than
+it was authorised to run. Raise the bound and it builds and answers correctly:
+
+```sh
+echo '{:budgets {:fuel 1048576}}' > fuel.edn
+amu compile main.kotoba --target wasm32 --policy fuel.edn --output m.wasm
+# main() = 512
+```
+
+So the harness declares the budget explicitly and records it in the report
+(`method.declaredKotobaFuel`). C, Rust and Java have no equivalent bound to
+raise, which is itself worth stating rather than quietly equalising away.
+
+The general shape is worth naming, because it is easy to hit and it looks like
+success: **a benchmark that trips a safety bound and reports it as a defect is
+measuring the bound, not the compiler.** The two failures above are a
+one-character difference in the report and an opposite conclusion.
 
 ## Layout
 

@@ -31,29 +31,62 @@
                   :source source
                   :lower-is-better? true}))
 
+(def kotoba-lane-ids [:kotoba-wasm-cli :amu-wasm :amu-native])
+
+(defn- rank-one [machine scale source policy cand-id cand base-id base]
+  (let [cand-obs (observation machine cand-id scale (:samplesMilliseconds cand) source)
+        base-obs (observation machine base-id scale (:samplesMilliseconds base) source)
+        verdict (g/qualify cand-obs base-obs policy)]
+    {:comparedAgainst (name base-id)
+     :qualifiedFaster (:qualified? verdict)
+     :improvement (:improvement verdict)
+     :separation (:separation verdict)
+     :reasons (mapv #(update % :reason name) (:reasons verdict))}))
+
 (defn- pairwise
-  "Rank every other measured lane against the Kotoba lane at this scale."
-  [machine scale lane-results baseline-id source policy]
+  "Rank every Kotoba lane against every non-Kotoba lane at this scale.
+
+  There is more than one Kotoba lane because there is more than one Kotoba
+  compiler in play: a released binary and the current compiler. Ranking only
+  the released one would go silent exactly where it stops emitting a valid
+  module, which is the size range this benchmark exists to reach."
+  [machine scale lane-results source policy]
   (let [measured (into {} (for [[id r] lane-results
-                                :when (and (= "measured" (:status r)) (seq (:samplesMilliseconds r)))]
-                            [id r]))]
-    (when-let [base (get measured baseline-id)]
-      (let [base-obs (observation machine baseline-id scale (:samplesMilliseconds base) source)]
-        (into {}
-              (for [[id r] measured :when (not= id baseline-id)]
-                (let [cand (observation machine id scale (:samplesMilliseconds r) source)
-                      ;; the question is "is the Kotoba lane faster than this
-                      ;; one", so the Kotoba lane is the candidate.
-                      verdict (g/qualify base-obs cand policy)]
-                  [id {:comparedAgainst (name id)
-                       :kotobaQualifiedFaster (:qualified? verdict)
-                       :improvement (:improvement verdict)
-                       :separation (:separation verdict)
-                       :reasons (mapv #(update % :reason name) (:reasons verdict))}])))))))
+                                :when (and (= "measured" (:status r))
+                                           (seq (:samplesMilliseconds r)))]
+                            [id r]))
+        kotoba (filter (set kotoba-lane-ids) (keys measured))
+        others (remove (set kotoba-lane-ids) (keys measured))]
+    (into {}
+          (for [cid kotoba]
+            [cid (into {}
+                       (for [bid others]
+                         [bid (rank-one machine scale source policy
+                                        cid (get measured cid)
+                                        bid (get measured bid))]))]))))
+
+(defn- with-summaries
+  "Attach perfgate's summary to each measured lane.
+
+  Consumers that recompute a median from raw samples eventually disagree
+  about how, so the number the report ranks on is the number it publishes."
+  [scale]
+  (update scale :lanes
+          (fn [lanes]
+            (into {}
+                  (for [[id r] lanes]
+                    [id (if (and (= "measured" (:status r)) (seq (:samplesMilliseconds r)))
+                          (let [sm (g/summarize (:samplesMilliseconds r))]
+                            (assoc r :summary
+                                   (into {} (for [[k v] sm]
+                                              [k (if (number? v)
+                                                   (js/Number (.toFixed v 3))
+                                                   v)]))))
+                          r)])))))
 
 (defn build
-  [{:keys [scales environment machine harness-source baseline-id policy generated-at
-           lane-metadata]}]
+  [{:keys [scales environment machine harness-source policy generated-at
+           lane-metadata declared-fuel]}]
   (let [loads (mapcat (juxt :load1Before :load1After) scales)
         quiet? (and (seq loads) (every? #(<= % quiet-load1-limit) loads))]
     {:format "kotoba.buildbench/v1"
@@ -68,6 +101,11 @@
       "Anything about a lane reported as unavailable, invalid or not-run."]
      :environment environment
      :machine machine
+     ;; also kept as EDN, because JSON flattens keywords to strings and a
+     ;; machine descriptor that cannot round-trip cannot be re-qualified
+     ;; later without re-measuring the machine it describes.
+     :machineEdn (pr-str machine)
+     :machineFingerprint (m/fingerprint machine)
      :machineProvenance (:machine/provenance machine)
      :lanes lane-metadata
      :method
@@ -75,6 +113,12 @@
       :interleaving "lanes rotate their starting position every round"
       :validation "artifacts are executed or structurally checked after the clock stops"
       :warmupsPerLane 1
+      :declaredKotobaFuel declared-fuel
+      :declaredKotobaFuelNote
+      (str "Kotoba modules carry a declared call-fuel budget and the compiler default is 512 calls, "
+           "which this workload crosses at K=512 where the entry point calls 512 leaves. "
+           "The budget is raised explicitly so the lane measures compilation rather than a "
+           "correctly-enforced resource bound. C, Rust and Java have no equivalent bound to raise.")
       :harness harness-source}
      :absoluteTimes
      {:qualified quiet?
@@ -88,9 +132,9 @@
              "pairwise ordering below is qualified separately."))}
      :orderingPolicy policy
      :scales
-     (vec (for [s scales]
+     (vec (for [s (map with-summaries scales)]
             (assoc s :ordering
-                   (pairwise machine (:k s) (:lanes s) baseline-id harness-source policy))))}))
+                   (pairwise machine (:k s) (:lanes s) harness-source policy))))}))
 
 (defn summarize-line [scale]
   (str "K=" (:k scale) "  "
