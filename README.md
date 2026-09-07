@@ -206,10 +206,7 @@ compiler refuses the module:
  :message "function count exceeds admission limit"}
 ```
 
-It exits 65 and names what it refused. The limit is per module — a larger
-program is a multi-module project, which this single-file harness deliberately
-does not exercise, so `K=1023` is this benchmark's ceiling and not the
-language's. This is worth putting directly beside
+It exits 65 and names what it refused. This is worth putting directly beside
 the LEB128 bug, because the two are opposites and they arrive at the same
 place in a naive table — a lane that stopped:
 
@@ -222,6 +219,32 @@ place in a naive table — a lane that stopped:
 A loud ceiling and a silent one are very different results. Only a harness that
 executes the artifact can tell them apart, which is the whole reason this one
 does.
+
+### Correction, 2026-09-07: the limit is not per module
+
+An earlier version of this section said the limit was per module, so a bigger
+program was a multi-module project the single-file harness deliberately did not
+exercise, and `K=1023` was therefore this benchmark's ceiling rather than the
+language's. That was measured against Amu `715138d0` and it is false:
+
+```
+$ amu check main.kotoba --source-path proj800     # 4 modules, 800 leaves
+{:format :kotoba.check/v1, :definitions {...}}    # links and checks
+
+$ amu check main.kotoba --source-path proj2048    # 4 modules, 2048 leaves
+{:ok false, :error :project-link,
+ :message "linked project exceeds function limit"}
+```
+
+`kotoba/compiler/project.cljc` carries `max-project-functions`, also 1,024,
+checked against the **linked** program. There is no arrangement of modules that
+compiles a 2,048-function Kotoba program today, so `K=1024` and `K=2048` are the
+language's ceiling and not only this harness's. That does not make the bound a
+defect — it is still declared, still loud, and still exits 65 — but the escape
+route this README offered its readers does not exist, and a reader could have
+acted on it.
+
+The correction is recorded in Amu's `docs/build-scaling-coscientist.md`.
 
 The general shape is worth naming, because it is easy to hit and it looks like
 success: **a benchmark that trips a declared bound and reports it as a defect
