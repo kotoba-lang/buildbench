@@ -1,4 +1,4 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 (ns validator-test
   "Does the artifact check refuse for the reason it names?
 

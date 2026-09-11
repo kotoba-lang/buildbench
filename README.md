@@ -33,7 +33,7 @@ npm install -g nbb          # or: npx nbb
 git clone https://github.com/kotoba-lang/perfgate ../perfgate
 git clone https://github.com/kotoba-lang/machine  ../machine
 
-nbb --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljk \
+kbb --backend sci --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljk \
   --scales 1,32,128,129,512,1023,1024 \
   --runs 7 \
   --budget-ms 300000 \
@@ -254,7 +254,7 @@ failures above is one field in the report and an opposite conclusion.
 ## Testing the validator itself
 
 ```sh
-nbb --classpath "src:../perfgate/src:../machine/src" test/validator_test.cljk
+kbb --backend sci --classpath "src:../perfgate/src:../machine/src" test/validator_test.cljk
 ```
 
 A validator that has only ever been seen to pass is not evidence of anything,
