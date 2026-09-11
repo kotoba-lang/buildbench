@@ -33,7 +33,7 @@ npm install -g nbb          # or: npx nbb
 git clone https://github.com/kotoba-lang/perfgate ../perfgate
 git clone https://github.com/kotoba-lang/machine  ../machine
 
-nbb --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljs \
+nbb --classpath "src:../perfgate/src:../machine/src" bin/buildbench.cljk \
   --scales 1,32,128,129,512,1023,1024 \
   --runs 7 \
   --budget-ms 300000 \
@@ -145,7 +145,7 @@ A threshold loosened to let this run's result through would be a benchmark
 measuring its own thresholds. If a lane is too noisy to rank, the report says
 `:too-noisy` and publishes the samples anyway.
 
-`:require-provenance :measured` is why `src/buildbench/host.cljs` reads cache
+`:require-provenance :measured` is why `src/buildbench/host.cljk` reads cache
 line size, page size and core count off the machine with `sysctl` instead of
 declaring a plausible Apple M4. A claim pinned to numbers nobody read is a
 claim pinned to nothing, and perfgate refuses it.
@@ -254,7 +254,7 @@ failures above is one field in the report and an opposite conclusion.
 ## Testing the validator itself
 
 ```sh
-nbb --classpath "src:../perfgate/src:../machine/src" test/validator_test.cljs
+nbb --classpath "src:../perfgate/src:../machine/src" test/validator_test.cljk
 ```
 
 A validator that has only ever been seen to pass is not evidence of anything,
@@ -272,13 +272,13 @@ some unrelated reason.
 ## Layout
 
 ```
-bin/buildbench.cljs        entry point
-src/buildbench/workload.cljs   the generator, one program in four languages
-src/buildbench/lanes.cljs      toolchains and what each artifact must prove
-src/buildbench/measure.cljs    interleaving, budgets, validation-after-clock
-src/buildbench/host.cljs       sysctl probe → a :measured machine descriptor
-src/buildbench/report.cljs     the two qualifications, kept apart
-test/validator_test.cljs       proof the artifact check refuses for its stated reason
+bin/buildbench.cljk        entry point
+src/buildbench/workload.cljk   the generator, one program in four languages
+src/buildbench/lanes.cljk      toolchains and what each artifact must prove
+src/buildbench/measure.cljk    interleaving, budgets, validation-after-clock
+src/buildbench/host.cljk       sysctl probe → a :measured machine descriptor
+src/buildbench/report.cljk     the two qualifications, kept apart
+test/validator_test.cljk       proof the artifact check refuses for its stated reason
 results/                       published runs, one JSON per host
 ```
 

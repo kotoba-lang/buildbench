@@ -8,6 +8,6 @@
     "nbb": "1.5.211"
   },
   "scripts": {
-    "bench": "nbb --classpath src:../perfgate/src:../machine/src bin/buildbench.cljs"
+    "bench": "nbb --classpath src:../perfgate/src:../machine/src bin/buildbench.cljk"
   }
 }

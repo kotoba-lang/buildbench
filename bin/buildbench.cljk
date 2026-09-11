@@ -3,7 +3,7 @@
   "buildbench — how build time grows with code size, with the checks attached.
 
   usage:
-    nbb --classpath src:<perfgate>/src:<machine>/src bin/buildbench.cljs \\
+    nbb --classpath src:<perfgate>/src:<machine>/src bin/buildbench.cljk \\
       --scales 1,32,128,512,2048 --runs 7 --budget-ms 120000 \\
       --amu /path/to/amu --output results/latest.json
 
